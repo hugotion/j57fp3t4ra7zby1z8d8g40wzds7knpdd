@@ -1,0 +1,64 @@
+
+name: Setup Hugo
+
+on: 
+  push:
+    branches:
+      - main
+
+jobs:
+  setup-hugo:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.WORKFLOW_TOKEN }}
+
+    - name: Configure Git user
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+
+    - name: Clone and extract site
+      run: |
+        # Create a temporary directory
+        TEMP_DIR=$(mktemp -d)
+        # Clone the sites repository
+        git clone https://github.com/vovanukas/hugo-sites.git $TEMP_DIR
+        # Copy the specific site contents
+        cp -r $TEMP_DIR/andromeda-light-hugo/* .
+        cp -r $TEMP_DIR/andromeda-light-hugo/.* . 2>/dev/null || true
+        # Clean up
+        rm -rf $TEMP_DIR
+
+    - name: Delete Workflow File
+      run: |
+        rm .github/workflows/hugo-setup.yml
+
+    - name: Commit and push changes
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        git add .
+        git commit -m "Initial setup with andromeda-light-hugo site"
+        git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/hugotion/${{ github.event.repository.name }}.git main
+
+    - name: Notify on success
+      if: success()
+      uses: distributhor/workflow-webhook@v3
+      with:
+        webhook_url: 'https://cool-pelican-27.convex.site/callbackPageDeployed'
+        webhook_auth_type: "bearer"
+        webhook_auth: ${{ secrets.CALLBACK_BEARER }}
+        data: '{ "buildStatus": "BUILT", "publishStatus": "UNPUBLISHED" }'
+
+    - name: Notify on failure
+      if: failure()
+      uses: distributhor/workflow-webhook@v3
+      with:
+        webhook_url: 'https://cool-pelican-27.convex.site/callbackPageDeployed'
+        webhook_auth_type: "bearer"
+        webhook_auth: ${{ secrets.CALLBACK_BEARER }}
+        data: '{ "buildStatus": "ERROR", "publishStatus": "ERROR" }'
